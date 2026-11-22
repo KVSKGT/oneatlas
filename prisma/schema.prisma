@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Lab {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  country     String?
+  website     String?
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  models      Model[]
+
+  @@map("labs")
+}
+
+model Model {
+  id               String           @id @default(uuid())
+  slug             String           @unique
+  name             String
+  labId            String
+  lab              Lab              @relation(fields: [labId], references: [id], onDelete: Cascade)
+  modelType        String           // text, image, embedding, multimodal
+  description      String?          @db.Text
+  contextWindow    Int              @default(0)
+  releaseDate      DateTime?
+  inputModalities  String[]         @default([])
+  outputModalities String[]         @default([])
+  capabilities     String[]         @default([])
+  minInputPrice    Decimal?         @db.Decimal(12, 6)
+  minOutputPrice   Decimal?         @db.Decimal(12, 6)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  providers        ModelProvider[]
+  benchmarkScores  BenchmarkScore[]
+
+  @@index([labId])
+  @@index([releaseDate])
+  @@index([minInputPrice])
+  @@index([contextWindow])
+  @@map("models")
+}
+
+model Provider {
+  id          String          @id @default(uuid())
+  slug        String          @unique
+  name        String
+  website     String?
+  description String?         @db.Text
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  models      ModelProvider[]
+
+  @@map("providers")
+}
+
+model ModelProvider {
+  id             String   @id @default(uuid())
+  modelId        String
+  providerId     String
+  inputPricePerM Decimal  @db.Decimal(12, 6)
+  outputPricePerM Decimal @db.Decimal(12, 6)
+  contextWindow  Int      @default(0)
+  latencyMs      Int?
+  throughputTps  Decimal? @db.Decimal(8, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  model    Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([modelId, providerId])
+  @@index([providerId])
+  @@map("model_providers")
+}
+
+model Benchmark {
+  id          String           @id @default(uuid())
+  slug        String           @unique
+  name        String
+  category    String           // reasoning, coding, knowledge, agentic, vision, math
+  description String?          @db.Text
+  source      String           @default("sample")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  scores      BenchmarkScore[]
+
+  @@map("benchmarks")
+}
+
+model BenchmarkScore {
+  id          String    @id @default(uuid())
+  modelId     String
+  benchmarkId String
+  score       Decimal   @db.Decimal(6, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  model     Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  benchmark Benchmark @relation(fields: [benchmarkId], references: [id], onDelete: Cascade)
+
+  @@unique([modelId, benchmarkId])
+  @@index([benchmarkId, score])
+  @@map("benchmark_scores")
+}
